@@ -82,20 +82,22 @@ class TetrisGame {
             
             switch(action) {
                 case 'left':
-                    this.moveShape(-1);
-                    soundManager.play('move');
+                    if (this.moveShape(-1)) {
+                        soundManager.play('move');
+                    }
                     break;
                 case 'right':
-                    this.moveShape(1);
-                    soundManager.play('move');
+                    if (this.moveShape(1)) {
+                        soundManager.play('move');
+                    }
                     break;
                 case 'down':
                     this.dropShape();
-                    soundManager.play('move');
                     break;
                 case 'rotate':
-                    this.rotateShape();
-                    soundManager.play('rotate');
+                    if (this.rotateShape()) {
+                        soundManager.play('rotate');
+                    }
                     break;
             }
         };
@@ -288,7 +290,8 @@ class TetrisGame {
             this.currentX -= dir;
             return false;
         }
-        soundManager.play('move', 0.4);
+        // 移动成功后立即播放音效
+        soundManager.play('move');
         this.draw();
         return true;
     }
@@ -304,7 +307,8 @@ class TetrisGame {
             return false;
         }
         
-        soundManager.play('rotate', 0.5);
+        // 旋转成功后立即播放音效
+        soundManager.play('rotate');
         this.draw();
         return true;
     }
@@ -317,6 +321,8 @@ class TetrisGame {
             this.createNewShape();
             return;
         }
+        // 下落成功后立即播放音效
+        soundManager.play('move');
         this.draw();
     }
     

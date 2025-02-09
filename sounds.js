@@ -11,6 +11,10 @@ class SoundManager {
         this.bgmVolume = 0.3;
         this.effectsVolume = 0.6;
         
+        // 音效缓存池
+        this.audioPool = {};
+        this.poolSize = 3;
+        
         // 如果不是微信，则使用 Web Audio API
         if (!this.isWechat) {
             try {
@@ -85,17 +89,23 @@ class SoundManager {
                         this.soundBuffers[name] = audioBuffer;
                     }
                 } else {
-                    // 使用传统 Audio 对象
-                    const audio = new Audio(`sounds/${file}`);
-                    audio.preload = 'auto';
-                    
-                    if (name === 'bgm') {
-                        audio.loop = true;
-                        audio.volume = this.bgmVolume;
-                        this.bgm = audio;
-                    } else {
-                        audio.volume = this.effectsVolume;
-                        this.sounds[name] = audio;
+                    // 使用传统 Audio 对象并创建音效池
+                    this.audioPool[name] = [];
+                    for (let i = 0; i < this.poolSize; i++) {
+                        const audio = new Audio(`sounds/${file}`);
+                        audio.preload = 'auto';
+                        
+                        if (name === 'bgm') {
+                            audio.loop = true;
+                            audio.volume = this.bgmVolume;
+                            this.bgm = audio;
+                        } else {
+                            audio.volume = this.effectsVolume;
+                            this.audioPool[name].push(audio);
+                        }
+                    }
+                    if (name !== 'bgm') {
+                        this.sounds[name] = this.audioPool[name][0];
                     }
                 }
             } catch (e) {
@@ -132,10 +142,20 @@ class SoundManager {
                 gainNode.gain.value = volume;
                 source.start(0);
             } else {
-                // 使用传统 Audio 对象
-                if (!this.sounds[name]) return;
+                // 使用音效池中的音频对象
+                if (!this.audioPool[name]) return;
                 
-                const sound = this.sounds[name].cloneNode();
+                // 查找可用的音频对象
+                let sound = this.audioPool[name].find(audio => 
+                    audio.paused || audio.ended || audio.currentTime === 0
+                );
+                
+                // 如果没有可用的音频对象，重用第一个
+                if (!sound) {
+                    sound = this.audioPool[name][0];
+                    sound.currentTime = 0;
+                }
+
                 let volume = this.effectsVolume;
                 switch(name) {
                     case 'move': volume *= 0.3; break;
@@ -146,8 +166,18 @@ class SoundManager {
                     case 'button': volume *= 0.4; break;
                     case 'start': volume *= 0.7; break;
                 }
+                
                 sound.volume = volume;
-                sound.play().catch(e => console.warn('Error playing sound:', e));
+                
+                // 立即播放音效
+                const playPromise = sound.play();
+                if (playPromise) {
+                    playPromise.catch(e => {
+                        // 如果播放失败，尝试重置并重新播放
+                        sound.currentTime = 0;
+                        sound.play().catch(e => console.warn('Error playing sound:', e));
+                    });
+                }
             }
         } catch (e) {
             console.warn(`Error playing sound ${name}:`, e);
