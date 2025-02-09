@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>俄罗斯方块</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="game-container">
+            <div class="game-content">
+                <div class="game-main">
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+                <div class="game-info">
+                    <button id="soundBtn" class="sound-btn">🔊</button>
+                    <div class="info-section">
+                        <div class="info-item">
+                            <label>得分</label>
+                            <span id="score">0</span>
+                        </div>
+                        <div class="info-item">
+                            <label>消除行</label>
+                            <span id="lines">0</span>
+                        </div>
+                        <div class="info-item">
+                            <label>级别</label>
+                            <span id="level">1</span>
+                        </div>
+                        <div class="preview-section">
+                            <div class="section-title">下一个</div>
+                            <div id="previewContainer"></div>
+                        </div>
+                        <button id="rankBtn" class="rank-btn">排行榜</button>
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button id="leftBtn" class="round-btn">←</button>
+                <button id="dropBtn" class="round-btn">↓</button>
+                <button id="rightBtn" class="round-btn">→</button>
+                <button id="rotateBtn" class="round-btn">旋</button>
+            </div>
+        </div>
+        <div class="game-over hidden">
+            <div class="game-over-content">
+                <h2>游戏结束</h2>
+                <p>最终得分: <span id="finalScore">0</span></p>
+                <input type="text" id="playerName" placeholder="输入你的名字" maxlength="10">
+                <button id="saveScoreBtn">保存分数</button>
+                <button id="restartBtn">重新开始</button>
+                <div class="leaderboard">
+                    <h3>排行榜</h3>
+                    <div id="leaderboardList"></div>
+                </div>
+            </div>
+        </div>
+        <div class="leaderboard-modal hidden">
+            <div class="leaderboard-content">
+                <h3>排行榜</h3>
+                <div id="leaderboardListModal"></div>
+                <button id="closeRankBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+    <script src="sounds.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 
