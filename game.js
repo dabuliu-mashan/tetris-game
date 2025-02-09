@@ -76,8 +76,12 @@ class TetrisGame {
         // 左按钮
         document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
+            soundManager.play('move', 0.3);
             this.moveShape(-1);
-            leftInterval = setInterval(() => this.moveShape(-1), moveInterval);
+            leftInterval = setInterval(() => {
+                soundManager.play('move', 0.3);
+                this.moveShape(-1);
+            }, moveInterval);
         });
         document.getElementById('leftBtn').addEventListener('touchend', () => {
             clearInterval(leftInterval);
@@ -86,8 +90,12 @@ class TetrisGame {
         // 右按钮
         document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
+            soundManager.play('move', 0.3);
             this.moveShape(1);
-            rightInterval = setInterval(() => this.moveShape(1), moveInterval);
+            rightInterval = setInterval(() => {
+                soundManager.play('move', 0.3);
+                this.moveShape(1);
+            }, moveInterval);
         });
         document.getElementById('rightBtn').addEventListener('touchend', () => {
             clearInterval(rightInterval);
@@ -96,10 +104,10 @@ class TetrisGame {
         // 下按钮
         document.getElementById('dropBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
-            soundManager.play('move', 0.3);  // 添加下落按钮音效
+            soundManager.play('move', 0.3);
             this.dropShape();
             downInterval = setInterval(() => {
-                soundManager.play('move', 0.3);  // 持续按住时的音效
+                soundManager.play('move', 0.3);
                 this.dropShape();
             }, moveInterval);
         });
@@ -110,6 +118,7 @@ class TetrisGame {
         // 旋转按钮
         document.getElementById('rotateBtn').addEventListener('touchstart', (e) => {
             e.preventDefault();
+            soundManager.play('rotate', 0.4);
             this.rotateShape();
         });
         
@@ -170,7 +179,8 @@ class TetrisGame {
         // 声音按钮点击效果
         document.getElementById('soundBtn').addEventListener('click', () => {
             const isMuted = soundManager.toggleMute();
-            document.getElementById('soundBtn').textContent = isMuted ? '🔈' : '🔊';
+            const soundBtn = document.getElementById('soundBtn');
+            soundBtn.classList.toggle('active', !isMuted);
             soundManager.play('button', 0.4);
         });
         
