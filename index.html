@@ -8,7 +8,14 @@
 </head>
 <body>
     <div class="game-wrapper">
-        <div class="game-container">
+        <div class="start-screen" id="startScreen">
+            <div class="start-content">
+                <h1>俄罗斯方块</h1>
+                <button id="startGameBtn" class="start-btn">点击开始游戏</button>
+            </div>
+        </div>
+        
+        <div class="game-container hidden" id="gameContainer">
             <div class="game-content">
                 <div class="game-main">
                     <canvas id="gameCanvas"></canvas>
