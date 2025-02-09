@@ -1,6 +1,7 @@
 class SoundManager {
     constructor() {
-        // 检测是否为微信浏览器
+        // 检测是否为移动端
+        this.isMobile = /Mobile|Android|iPhone/i.test(navigator.userAgent);
         this.isWechat = /MicroMessenger/i.test(navigator.userAgent);
         
         // 音效对象存储
@@ -13,20 +14,14 @@ class SoundManager {
         
         // 音效缓存池
         this.audioPool = {};
-        this.poolSize = 3;
+        this.poolSize = this.isMobile ? 2 : 3; // 移动端减少池大小
         
-        // 如果不是微信，则使用 Web Audio API
-        if (!this.isWechat) {
-            try {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                this.useWebAudio = true;
-            } catch (e) {
-                console.warn('Web Audio API not supported, falling back to Audio elements');
-                this.useWebAudio = false;
-            }
-        } else {
-            this.useWebAudio = false;
-        }
+        // 音频上下文
+        this.initAudioContext();
+        
+        // 音频状态
+        this.isAudioReady = false;
+        this.pendingPlay = new Set();
         
         // 预加载所有音效
         this.loadSounds();
@@ -35,24 +30,55 @@ class SoundManager {
         this.unlockAudio();
     }
 
+    initAudioContext() {
+        // 移动端默认使用 Audio 对象
+        if (this.isMobile || this.isWechat) {
+            this.useWebAudio = false;
+            return;
+        }
+
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.useWebAudio = true;
+        } catch (e) {
+            console.warn('Web Audio API not supported, falling back to Audio elements');
+            this.useWebAudio = false;
+        }
+    }
+
     unlockAudio() {
-        const unlock = () => {
-            if (this.useWebAudio && this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
-            
-            // 预加载并播放所有音频文件
-            Object.values(this.sounds).forEach(sound => {
-                if (sound && sound.play) {
-                    const playPromise = sound.play();
-                    if (playPromise) {
-                        playPromise.then(() => {
-                            sound.pause();
-                            sound.currentTime = 0;
-                        }).catch(() => {});
-                    }
+        const unlock = async () => {
+            if (!this.isAudioReady) {
+                if (this.useWebAudio && this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
                 }
-            });
+                
+                // 预加载并解锁所有音频
+                const unlockPromises = Object.values(this.audioPool).map(pool => {
+                    return Promise.all(pool.map(async (audio) => {
+                        try {
+                            audio.volume = 0;
+                            await audio.play();
+                            audio.pause();
+                            audio.currentTime = 0;
+                            audio.volume = this.effectsVolume;
+                        } catch (e) {
+                            console.warn('Error unlocking audio:', e);
+                        }
+                    }));
+                });
+
+                try {
+                    await Promise.all(unlockPromises);
+                    this.isAudioReady = true;
+                    
+                    // 播放待播放的音效
+                    this.pendingPlay.forEach(name => this.play(name));
+                    this.pendingPlay.clear();
+                } catch (e) {
+                    console.warn('Error unlocking audio pool:', e);
+                }
+            }
             
             document.removeEventListener('touchstart', unlock);
             document.removeEventListener('touchend', unlock);
@@ -76,20 +102,23 @@ class SoundManager {
             button: 'button.mp3'
         };
 
+        const loadPromises = [];
+
         for (const [name, file] of Object.entries(soundFiles)) {
             try {
                 if (this.useWebAudio) {
-                    const response = await fetch(`sounds/${file}`);
-                    const arrayBuffer = await response.arrayBuffer();
-                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-                    
-                    if (name === 'bgm') {
-                        this.bgm = audioBuffer;
-                    } else {
-                        this.soundBuffers[name] = audioBuffer;
-                    }
+                    const loadPromise = fetch(`sounds/${file}`)
+                        .then(response => response.arrayBuffer())
+                        .then(arrayBuffer => this.audioContext.decodeAudioData(arrayBuffer))
+                        .then(audioBuffer => {
+                            if (name === 'bgm') {
+                                this.bgm = audioBuffer;
+                            } else {
+                                this.soundBuffers[name] = audioBuffer;
+                            }
+                        });
+                    loadPromises.push(loadPromise);
                 } else {
-                    // 使用传统 Audio 对象并创建音效池
                     this.audioPool[name] = [];
                     for (let i = 0; i < this.poolSize; i++) {
                         const audio = new Audio(`sounds/${file}`);
@@ -103,6 +132,16 @@ class SoundManager {
                             audio.volume = this.effectsVolume;
                             this.audioPool[name].push(audio);
                         }
+
+                        // 监听加载错误
+                        audio.onerror = (e) => {
+                            console.warn(`Error loading sound ${name}:`, e);
+                        };
+
+                        const loadPromise = new Promise((resolve) => {
+                            audio.oncanplaythrough = resolve;
+                        });
+                        loadPromises.push(loadPromise);
                     }
                     if (name !== 'bgm') {
                         this.sounds[name] = this.audioPool[name][0];
@@ -112,10 +151,24 @@ class SoundManager {
                 console.warn(`Error loading sound ${name}:`, e);
             }
         }
+
+        // 等待所有音效加载完成
+        try {
+            await Promise.all(loadPromises);
+            console.log('All sounds loaded successfully');
+        } catch (e) {
+            console.warn('Error loading sounds:', e);
+        }
     }
 
     play(name) {
         if (this.isMuted) return;
+
+        // 如果音频系统还未就绪，将音效加入待播放队列
+        if (!this.isAudioReady) {
+            this.pendingPlay.add(name);
+            return;
+        }
 
         try {
             if (this.useWebAudio) {
@@ -128,21 +181,10 @@ class SoundManager {
                 source.connect(gainNode);
                 gainNode.connect(this.audioContext.destination);
 
-                let volume = this.effectsVolume;
-                switch(name) {
-                    case 'move': volume *= 0.3; break;
-                    case 'rotate': volume *= 0.4; break;
-                    case 'clear': volume *= 0.8; break;
-                    case 'levelUp': volume *= 0.9; break;
-                    case 'gameOver': volume *= 0.8; break;
-                    case 'button': volume *= 0.4; break;
-                    case 'start': volume *= 0.7; break;
-                }
-                
+                let volume = this.getVolumeForSound(name);
                 gainNode.gain.value = volume;
                 source.start(0);
             } else {
-                // 使用音效池中的音频对象
                 if (!this.audioPool[name]) return;
                 
                 // 查找可用的音频对象
@@ -156,32 +198,38 @@ class SoundManager {
                     sound.currentTime = 0;
                 }
 
-                let volume = this.effectsVolume;
-                switch(name) {
-                    case 'move': volume *= 0.3; break;
-                    case 'rotate': volume *= 0.4; break;
-                    case 'clear': volume *= 0.8; break;
-                    case 'levelUp': volume *= 0.9; break;
-                    case 'gameOver': volume *= 0.8; break;
-                    case 'button': volume *= 0.4; break;
-                    case 'start': volume *= 0.7; break;
-                }
-                
-                sound.volume = volume;
+                sound.volume = this.getVolumeForSound(name);
                 
                 // 立即播放音效
                 const playPromise = sound.play();
                 if (playPromise) {
                     playPromise.catch(e => {
-                        // 如果播放失败，尝试重置并重新播放
-                        sound.currentTime = 0;
-                        sound.play().catch(e => console.warn('Error playing sound:', e));
+                        if (e.name === 'NotAllowedError') {
+                            // 用户交互限制，将音效加入待播放队列
+                            this.pendingPlay.add(name);
+                        } else {
+                            console.warn(`Error playing sound ${name}:`, e);
+                        }
                     });
                 }
             }
         } catch (e) {
             console.warn(`Error playing sound ${name}:`, e);
         }
+    }
+
+    getVolumeForSound(name) {
+        let volume = this.effectsVolume;
+        switch(name) {
+            case 'move': volume *= this.isMobile ? 0.4 : 0.3; break;
+            case 'rotate': volume *= this.isMobile ? 0.5 : 0.4; break;
+            case 'clear': volume *= this.isMobile ? 0.9 : 0.8; break;
+            case 'levelUp': volume *= this.isMobile ? 1.0 : 0.9; break;
+            case 'gameOver': volume *= this.isMobile ? 0.9 : 0.8; break;
+            case 'button': volume *= this.isMobile ? 0.5 : 0.4; break;
+            case 'start': volume *= this.isMobile ? 0.8 : 0.7; break;
+        }
+        return volume;
     }
 
     async playBGM() {

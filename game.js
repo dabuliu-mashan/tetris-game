@@ -70,136 +70,101 @@ class TetrisGame {
         document.addEventListener('keydown', this.handleKeyPress.bind(this));
         
         // 移动端按钮控制
-        const moveInterval = 100; // 移动间隔时间
+        const moveInterval = 150; // 增加移动间隔时间
         let leftInterval, rightInterval, downInterval;
         let lastTouchTime = 0;
-        const touchThreshold = 50; // 触摸事件的最小间隔时间（毫秒）
+        const touchThreshold = 80; // 增加触摸事件的最小间隔时间
+        let lastPlayedSound = 0;
+        const soundThreshold = 100; // 音效触发的最小间隔
         
         const handleTouch = (action) => {
             const now = Date.now();
             if (now - lastTouchTime < touchThreshold) return;
             lastTouchTime = now;
             
+            const canPlaySound = now - lastPlayedSound >= soundThreshold;
+            
             switch(action) {
                 case 'left':
-                    if (this.moveShape(-1)) {
+                    if (this.moveShape(-1) && canPlaySound) {
                         soundManager.play('move');
+                        lastPlayedSound = now;
                     }
                     break;
                 case 'right':
-                    if (this.moveShape(1)) {
+                    if (this.moveShape(1) && canPlaySound) {
                         soundManager.play('move');
+                        lastPlayedSound = now;
                     }
                     break;
                 case 'down':
-                    this.dropShape();
+                    if (this.dropShape() && canPlaySound) {
+                        soundManager.play('move');
+                        lastPlayedSound = now;
+                    }
                     break;
                 case 'rotate':
-                    if (this.rotateShape()) {
+                    if (this.rotateShape() && canPlaySound) {
                         soundManager.play('rotate');
+                        lastPlayedSound = now;
                     }
                     break;
             }
         };
         
-        // 左按钮
-        document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleTouch('left');
-            leftInterval = setInterval(() => handleTouch('left'), moveInterval);
-        });
-        document.getElementById('leftBtn').addEventListener('touchend', () => {
-            clearInterval(leftInterval);
-        });
-        
-        // 右按钮
-        document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleTouch('right');
-            rightInterval = setInterval(() => handleTouch('right'), moveInterval);
-        });
-        document.getElementById('rightBtn').addEventListener('touchend', () => {
-            clearInterval(rightInterval);
-        });
-        
-        // 下按钮
-        document.getElementById('dropBtn').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleTouch('down');
-            downInterval = setInterval(() => handleTouch('down'), moveInterval);
-        });
-        document.getElementById('dropBtn').addEventListener('touchend', () => {
-            clearInterval(downInterval);
-        });
-        
-        // 旋转按钮
-        document.getElementById('rotateBtn').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleTouch('rotate');
-        });
-        
-        // 鼠标控制
-        document.getElementById('leftBtn').addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleTouch('left');
-            leftInterval = setInterval(() => handleTouch('left'), moveInterval);
-        });
-        document.getElementById('leftBtn').addEventListener('mouseup', () => {
-            clearInterval(leftInterval);
-        });
-        document.getElementById('leftBtn').addEventListener('mouseleave', () => {
-            clearInterval(leftInterval);
-        });
-        
-        document.getElementById('rightBtn').addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleTouch('right');
-            rightInterval = setInterval(() => handleTouch('right'), moveInterval);
-        });
-        document.getElementById('rightBtn').addEventListener('mouseup', () => {
-            clearInterval(rightInterval);
-        });
-        document.getElementById('rightBtn').addEventListener('mouseleave', () => {
-            clearInterval(rightInterval);
-        });
-        
-        document.getElementById('dropBtn').addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleTouch('down');
-            downInterval = setInterval(() => handleTouch('down'), moveInterval);
-        });
-        document.getElementById('dropBtn').addEventListener('mouseup', () => {
-            clearInterval(downInterval);
-        });
-        document.getElementById('dropBtn').addEventListener('mouseleave', () => {
-            clearInterval(downInterval);
-        });
-        
-        document.getElementById('rotateBtn').addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleTouch('rotate');
-        });
-        
-        // 重新开始按钮
-        document.getElementById('restartBtn').addEventListener('click', () => this.restart());
-        
-        // 排行榜相关事件
-        document.getElementById('rankBtn').addEventListener('click', () => this.showLeaderboardModal());
-        document.getElementById('closeRankBtn').addEventListener('click', () => this.hideLeaderboardModal());
-        document.getElementById('saveScoreBtn').addEventListener('click', () => this.saveScore());
+        // 触摸事件处理
+        const addTouchHandlers = (element, action) => {
+            let isPressed = false;
+            let intervalId = null;
+            
+            element.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isPressed = true;
+                handleTouch(action);
+                if (action !== 'rotate') {
+                    intervalId = setInterval(() => {
+                        if (isPressed) handleTouch(action);
+                    }, moveInterval);
+                }
+            }, { passive: false });
+
+            element.addEventListener('touchend', () => {
+                isPressed = false;
+                if (intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+            });
+
+            element.addEventListener('touchcancel', () => {
+                isPressed = false;
+                if (intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+            });
+        };
+
+        // 为所有按钮添加触摸处理
+        addTouchHandlers(document.getElementById('leftBtn'), 'left');
+        addTouchHandlers(document.getElementById('rightBtn'), 'right');
+        addTouchHandlers(document.getElementById('dropBtn'), 'down');
+        addTouchHandlers(document.getElementById('rotateBtn'), 'rotate');
         
         // 声音按钮点击效果
         document.getElementById('soundBtn').addEventListener('click', () => {
             const isMuted = soundManager.toggleMute();
             const soundBtn = document.getElementById('soundBtn');
             soundBtn.classList.toggle('active', !isMuted);
-            soundManager.play('button', 0.4);
+            if (!isMuted) {
+                soundManager.play('button');
+            }
         });
         
         // 添加按钮音效
         ['restartBtn', 'rankBtn', 'closeRankBtn', 'saveScoreBtn'].forEach(btnId => {
             document.getElementById(btnId).addEventListener('click', () => {
-                soundManager.play('button', 0.4);
+                soundManager.play('button');
             });
         });
     }
@@ -290,8 +255,6 @@ class TetrisGame {
             this.currentX -= dir;
             return false;
         }
-        // 移动成功后立即播放音效
-        soundManager.play('move');
         this.draw();
         return true;
     }
@@ -307,8 +270,6 @@ class TetrisGame {
             return false;
         }
         
-        // 旋转成功后立即播放音效
-        soundManager.play('rotate');
         this.draw();
         return true;
     }
@@ -319,11 +280,10 @@ class TetrisGame {
             this.currentY--;
             this.freezeShape();
             this.createNewShape();
-            return;
+            return false;
         }
-        // 下落成功后立即播放音效
-        soundManager.play('move');
         this.draw();
+        return true;
     }
     
     checkCollision() {
