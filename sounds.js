@@ -1,7 +1,9 @@
 class SoundManager {
     constructor() {
-        // 音效对象存储
+        // 创建音频上下文
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.sounds = {};
+        this.soundBuffers = {};
         this.isMuted = false;
         this.bgm = null;
         this.bgmVolume = 0.3;
@@ -9,10 +11,27 @@ class SoundManager {
         
         // 预加载所有音效
         this.loadSounds();
+
+        // 在用户交互时解锁音频上下文
+        this.unlockAudioContext();
     }
 
-    loadSounds() {
-        // 定义所有音效
+    unlockAudioContext() {
+        const unlock = () => {
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            document.removeEventListener('touchstart', unlock);
+            document.removeEventListener('touchend', unlock);
+            document.removeEventListener('click', unlock);
+        };
+
+        document.addEventListener('touchstart', unlock);
+        document.addEventListener('touchend', unlock);
+        document.addEventListener('click', unlock);
+    }
+
+    async loadSounds() {
         const soundFiles = {
             move: 'move.mp3',
             rotate: 'rotate.mp3',
@@ -24,111 +43,126 @@ class SoundManager {
             button: 'button.mp3'
         };
 
-        // 加载每个音效
-        Object.entries(soundFiles).forEach(([name, file]) => {
-            const audio = new Audio(`sounds/${file}`);
-            audio.preload = 'auto';
-            
-            if (name === 'bgm') {
-                audio.loop = true;
-                audio.volume = this.bgmVolume;
-                this.bgm = audio;
-            } else {
-                audio.volume = this.effectsVolume;
-                this.sounds[name] = audio;
+        // 加载并缓存每个音效
+        for (const [name, file] of Object.entries(soundFiles)) {
+            try {
+                const response = await fetch(`sounds/${file}`);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                
+                if (name === 'bgm') {
+                    this.bgm = audioBuffer;
+                } else {
+                    this.soundBuffers[name] = audioBuffer;
+                }
+            } catch (e) {
+                console.warn(`Error loading sound ${name}:`, e);
             }
-        });
+        }
     }
 
     play(name) {
-        if (this.isMuted || !this.sounds[name]) return;
+        if (this.isMuted || !this.soundBuffers[name]) return;
 
         try {
-            // 创建音效的新实例以允许重叠播放
-            const sound = this.sounds[name].cloneNode();
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
             
-            // 根据不同音效类型设置音量
+            source.buffer = this.soundBuffers[name];
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+
+            // 设置音量
+            let volume = this.effectsVolume;
             switch(name) {
                 case 'move':
-                    sound.volume = this.effectsVolume * 0.3;
+                    volume *= 0.3;
                     break;
                 case 'rotate':
-                    sound.volume = this.effectsVolume * 0.4;
+                    volume *= 0.4;
                     break;
                 case 'clear':
-                    sound.volume = this.effectsVolume * 0.8;
+                    volume *= 0.8;
                     break;
                 case 'levelUp':
-                    sound.volume = this.effectsVolume * 0.9;
+                    volume *= 0.9;
                     break;
                 case 'gameOver':
-                    sound.volume = this.effectsVolume * 0.8;
+                    volume *= 0.8;
                     break;
                 case 'button':
-                    sound.volume = this.effectsVolume * 0.4;
+                    volume *= 0.4;
                     break;
                 case 'start':
-                    sound.volume = this.effectsVolume * 0.7;
+                    volume *= 0.7;
                     break;
-                default:
-                    sound.volume = this.effectsVolume;
             }
             
-            sound.play().catch(e => console.warn('Error playing sound:', e));
+            gainNode.gain.value = volume;
+            source.start(0);
         } catch (e) {
             console.warn(`Error playing sound ${name}:`, e);
         }
     }
 
-    playBGM() {
+    async playBGM() {
         if (this.isMuted || !this.bgm) return;
         
         try {
-            // 重置BGM到开始
-            this.bgm.currentTime = 0;
-            // 设置音量并播放
-            this.bgm.volume = 0;
-            this.bgm.play()
-                .then(() => {
-                    // 淡入效果
-                    const fadeIn = setInterval(() => {
-                        if (this.bgm.volume < this.bgmVolume) {
-                            this.bgm.volume = Math.min(this.bgm.volume + 0.05, this.bgmVolume);
-                        } else {
-                            clearInterval(fadeIn);
-                        }
-                    }, 100);
-                })
-                .catch(e => console.warn('Error playing BGM:', e));
+            if (this.bgmSource) {
+                this.bgmSource.stop();
+            }
+
+            this.bgmSource = this.audioContext.createBufferSource();
+            this.bgmGain = this.audioContext.createGain();
+            
+            this.bgmSource.buffer = this.bgm;
+            this.bgmSource.loop = true;
+            this.bgmSource.connect(this.bgmGain);
+            this.bgmGain.connect(this.audioContext.destination);
+
+            // 淡入效果
+            this.bgmGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+            this.bgmGain.gain.linearRampToValueAtTime(
+                this.bgmVolume,
+                this.audioContext.currentTime + 1
+            );
+
+            this.bgmSource.start(0);
         } catch (e) {
-            console.warn('Error starting BGM:', e);
+            console.warn('Error playing BGM:', e);
         }
     }
 
     stopBGM() {
-        if (!this.bgm) return;
+        if (!this.bgmSource) return;
 
-        // 淡出效果
-        const fadeOut = setInterval(() => {
-            if (this.bgm.volume > 0.05) {
-                this.bgm.volume = Math.max(this.bgm.volume - 0.05, 0);
-            } else {
-                this.bgm.pause();
-                this.bgm.currentTime = 0;
-                clearInterval(fadeOut);
-            }
-        }, 100);
+        try {
+            // 淡出效果
+            this.bgmGain.gain.linearRampToValueAtTime(
+                0,
+                this.audioContext.currentTime + 0.5
+            );
+            setTimeout(() => {
+                this.bgmSource.stop();
+                this.bgmSource = null;
+            }, 500);
+        } catch (e) {
+            console.warn('Error stopping BGM:', e);
+        }
     }
 
     toggleMute() {
         this.isMuted = !this.isMuted;
         
         if (this.isMuted) {
-            this.bgm.volume = 0;
-            Object.values(this.sounds).forEach(sound => sound.volume = 0);
+            if (this.bgmGain) {
+                this.bgmGain.gain.value = 0;
+            }
         } else {
-            this.bgm.volume = this.bgmVolume;
-            Object.values(this.sounds).forEach(sound => sound.volume = this.effectsVolume);
+            if (this.bgmGain) {
+                this.bgmGain.gain.value = this.bgmVolume;
+            }
         }
         
         return this.isMuted;
