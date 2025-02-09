@@ -140,65 +140,34 @@ canvas {
     height: 100%;
 }
 
-.rank-btn {
+.sound-btn {
     width: 100%;
     padding: min(12px, calc(var(--info-width) * 0.08));
     font-size: min(1.1em, calc(var(--info-width) * 0.12));
-    background-color: #2196F3;
+    background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    margin-top: auto;
-    transition: background-color 0.2s;
-}
-
-.rank-btn:hover {
-    background-color: #1976D2;
-}
-
-.controls {
-    display: flex;
-    justify-content: space-between;
-    width: calc(100% - var(--info-width) - var(--gap-size) - 20px);
-    padding: 10px 0;
-    position: relative;
-    z-index: 10;
-    margin-right: 20px;
-    bottom: 0;
-}
-
-#soundBtn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 30px;
-    height: 30px;
-    font-size: 14px;
-    padding: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
 }
 
-#soundBtn:hover {
-    background: rgba(255, 255, 255, 0.2);
+.sound-btn:hover {
+    background: linear-gradient(145deg, #3c3c3c, #2a2a2a);
 }
 
 .round-btn {
-    width: 65px;
-    height: 65px;
+    width: min(75px, calc((100% - var(--info-width) - var(--gap-size) - 60px) / 4));
+    height: min(75px, calc((100% - var(--info-width) - var(--gap-size) - 60px) / 4));
     border-radius: 50%;
     background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
     border: none;
     color: #fff;
-    font-size: 26px;
+    font-size: min(30px, calc(var(--button-size) * 0.4));
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -359,6 +328,40 @@ canvas {
 #saveScoreBtn:active, #restartBtn:active, #closeRankBtn:active {
     transform: translateY(1px);
     box-shadow: 0 2px 10px rgba(33, 150, 243, 0.2);
+}
+
+.controls {
+    display: flex;
+    justify-content: space-between;
+    width: calc(100% - var(--info-width) - var(--gap-size));
+    padding: 10px 0;
+    position: relative;
+    z-index: 10;
+    margin-right: 10px;
+    bottom: 0;
+}
+
+#soundBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+#soundBtn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 @media (max-width: 600px) {
