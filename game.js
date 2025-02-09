@@ -70,43 +70,47 @@ class TetrisGame {
         document.addEventListener('keydown', this.handleKeyPress.bind(this));
         
         // 移动端按钮控制
-        const moveInterval = 150; // 增加移动间隔时间
-        let leftInterval, rightInterval, downInterval;
-        let lastTouchTime = 0;
-        const touchThreshold = 80; // 增加触摸事件的最小间隔时间
-        let lastPlayedSound = 0;
-        const soundThreshold = 100; // 音效触发的最小间隔
+        const moveInterval = 120; // 调整移动间隔时间
+        const touchThreshold = 60; // 减少触摸事件的最小间隔时间
+        
+        // 触摸状态管理
+        const touchState = {
+            lastTouchTime: 0,
+            lastMoveTime: 0,
+            isPressed: false,
+            activeIntervals: new Set()
+        };
+        
+        const clearAllIntervals = () => {
+            touchState.activeIntervals.forEach(interval => clearInterval(interval));
+            touchState.activeIntervals.clear();
+            touchState.isPressed = false;
+        };
         
         const handleTouch = (action) => {
             const now = Date.now();
-            if (now - lastTouchTime < touchThreshold) return;
-            lastTouchTime = now;
-            
-            const canPlaySound = now - lastPlayedSound >= soundThreshold;
+            if (now - touchState.lastTouchTime < touchThreshold) return;
+            touchState.lastTouchTime = now;
             
             switch(action) {
                 case 'left':
-                    if (this.moveShape(-1) && canPlaySound) {
+                    if (this.moveShape(-1)) {
                         soundManager.play('move');
-                        lastPlayedSound = now;
                     }
                     break;
                 case 'right':
-                    if (this.moveShape(1) && canPlaySound) {
+                    if (this.moveShape(1)) {
                         soundManager.play('move');
-                        lastPlayedSound = now;
                     }
                     break;
                 case 'down':
-                    if (this.dropShape() && canPlaySound) {
+                    if (this.dropShape()) {
                         soundManager.play('move');
-                        lastPlayedSound = now;
                     }
                     break;
                 case 'rotate':
-                    if (this.rotateShape() && canPlaySound) {
+                    if (this.rotateShape()) {
                         soundManager.play('rotate');
-                        lastPlayedSound = now;
                     }
                     break;
             }
@@ -114,35 +118,36 @@ class TetrisGame {
         
         // 触摸事件处理
         const addTouchHandlers = (element, action) => {
-            let isPressed = false;
-            let intervalId = null;
-            
-            element.addEventListener('touchstart', (e) => {
+            const startHandler = (e) => {
                 e.preventDefault();
-                isPressed = true;
+                touchState.isPressed = true;
                 handleTouch(action);
+                
                 if (action !== 'rotate') {
-                    intervalId = setInterval(() => {
-                        if (isPressed) handleTouch(action);
+                    const interval = setInterval(() => {
+                        if (touchState.isPressed) {
+                            handleTouch(action);
+                        }
                     }, moveInterval);
+                    touchState.activeIntervals.add(interval);
                 }
-            }, { passive: false });
-
-            element.addEventListener('touchend', () => {
-                isPressed = false;
-                if (intervalId) {
-                    clearInterval(intervalId);
-                    intervalId = null;
-                }
-            });
-
-            element.addEventListener('touchcancel', () => {
-                isPressed = false;
-                if (intervalId) {
-                    clearInterval(intervalId);
-                    intervalId = null;
-                }
-            });
+            };
+            
+            const endHandler = () => {
+                clearAllIntervals();
+            };
+            
+            // 添加触摸事件监听器
+            element.addEventListener('touchstart', startHandler, { passive: false });
+            element.addEventListener('touchend', endHandler);
+            element.addEventListener('touchcancel', endHandler);
+            
+            // 添加鼠标事件监听器（用于开发调试）
+            if (!('ontouchstart' in window)) {
+                element.addEventListener('mousedown', startHandler);
+                element.addEventListener('mouseup', endHandler);
+                element.addEventListener('mouseleave', endHandler);
+            }
         };
 
         // 为所有按钮添加触摸处理
@@ -152,20 +157,31 @@ class TetrisGame {
         addTouchHandlers(document.getElementById('rotateBtn'), 'rotate');
         
         // 声音按钮点击效果
-        document.getElementById('soundBtn').addEventListener('click', () => {
+        const soundBtn = document.getElementById('soundBtn');
+        const handleSoundClick = () => {
             const isMuted = soundManager.toggleMute();
-            const soundBtn = document.getElementById('soundBtn');
             soundBtn.classList.toggle('active', !isMuted);
             if (!isMuted) {
                 soundManager.play('button');
             }
-        });
+        };
+        
+        if ('ontouchstart' in window) {
+            soundBtn.addEventListener('touchstart', handleSoundClick);
+        } else {
+            soundBtn.addEventListener('click', handleSoundClick);
+        }
         
         // 添加按钮音效
         ['restartBtn', 'rankBtn', 'closeRankBtn', 'saveScoreBtn'].forEach(btnId => {
-            document.getElementById(btnId).addEventListener('click', () => {
-                soundManager.play('button');
-            });
+            const btn = document.getElementById(btnId);
+            const handler = () => soundManager.play('button');
+            
+            if ('ontouchstart' in window) {
+                btn.addEventListener('touchstart', handler);
+            } else {
+                btn.addEventListener('click', handler);
+            }
         });
     }
     
